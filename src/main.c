@@ -8,15 +8,15 @@
 
 static void ultrasonic_task(void *args)
 {
+    esp_log_level_set("Ultrasonic", ESP_LOG_INFO);
+
     ultrasonic_serial_t dist_sensor = {
         .uart_num = UART_NUM_2,
         .tx_pin = GPIO_NUM_17,
         .rx_pin = GPIO_NUM_16
     };
-    
-    ESP_LOGI("Ultrasonic", "Hello There");
+
     ESP_ERROR_CHECK(ultrasonic_serial_init(&dist_sensor)); 
-    ESP_LOGI("Ultrasonic", "Properly initialized UART");
 
     while (1)
     {
@@ -24,7 +24,7 @@ static void ultrasonic_task(void *args)
         ultrasonic_measure(&dist_sensor, &distance);
         ESP_LOGI("Ultrasonic", "Distance: %d", distance);
 
-        vTaskDelay(5000 / portTICK_PERIOD_MS);
+        vTaskDelay(500 / portTICK_PERIOD_MS);
     }
 }
 

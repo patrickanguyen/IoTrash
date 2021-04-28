@@ -5,7 +5,7 @@
 #include <esp_log.h>
 
 #define PING_MSG "U"
-#define PING_TIMEOUT 60000
+#define PING_TIMEOUT 100000
 #define BUFFER_SIZE 1024
 
 #define CHECK(x) do { esp_err_t __; if ((__ = x) != ESP_OK) return __; } while (0)
@@ -38,17 +38,17 @@ esp_err_t ultrasonic_serial_init(const ultrasonic_serial_t *dev)
     
     CHECK(uart_param_config(dev->uart_num, &uart_config));
 
-    ESP_LOGI("Ultrasonic", "Set UART communication parameters");
+    ESP_LOGD("Ultrasonic", "Set UART communication parameters");
 
     // Set communication pins
     CHECK(uart_set_pin(dev->uart_num, dev->tx_pin, dev->rx_pin, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE));
 
-    ESP_LOGI("Ultrasonic", "Set UART communication pins");
+    ESP_LOGD("Ultrasonic", "Set UART communication pins");
 
     // Driver Installation
     CHECK(uart_driver_install(dev->uart_num, (BUFFER_SIZE * 2), 0, 0, NULL, 0));
 
-    ESP_LOGI("Ultrasonic", "Installed UART driver");
+    ESP_LOGD("Ultrasonic", "Installed UART driver");
 
     return ESP_OK;
 }
@@ -59,11 +59,11 @@ esp_err_t ultrasonic_measure(const ultrasonic_serial_t *dev, uint32_t *p_distanc
     CHECK(check_dev_arg(dev));
     CHECK(check_p_distance_arg(p_distance));
 
-    ESP_LOGI("Ultrasonic", "Valid inputs for ultrasonic_measure");
+    ESP_LOGD("Ultrasonic", "Valid inputs for ultrasonic_measure");
     // Flush UART FIFO's
     CHECK(uart_flush(dev->uart_num));
 
-    ESP_LOGI("Ultrasonic", "Flushed UART FIFO");
+    ESP_LOGD("Ultrasonic", "Flushed UART FIFO");
 
     // Write 0x55 to US-100 Sensor
     int bytes_written = uart_write_bytes(dev->uart_num, PING_MSG, strlen(PING_MSG));
@@ -73,9 +73,8 @@ esp_err_t ultrasonic_measure(const ultrasonic_serial_t *dev, uint32_t *p_distanc
         return ESP_ERR_INVALID_RESPONSE;
     }
 
-    ESP_LOGI("Ultrasonic", "Wrote 0x55 to US-100");
+    ESP_LOGD("Ultrasonic", "Wrote 0x55 to US-100");
 
-    #if 0
     // Wait to recieve 2 bytes
     size_t length = 0;
     int64_t start = esp_timer_get_time();
@@ -89,7 +88,6 @@ esp_err_t ultrasonic_measure(const ultrasonic_serial_t *dev, uint32_t *p_distanc
             return ESP_ERR_TIMEOUT;
         }
     }
-    #endif
     
     // Read from UART RX FIFO
     uint8_t data[BUFFER_SIZE];
