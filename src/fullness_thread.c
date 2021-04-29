@@ -17,7 +17,7 @@ static uint32_t calculate_interquartile_average(void);
 
 void fullness_thread(void* args)
 {
-    esp_log_level_set("Ultrasonic", ESP_LOG_INFO);
+    esp_log_level_set(ULTRASONIC_TAG, ESP_LOG_INFO);
 
     ultrasonic_serial_t dist_sensor = {
         .uart_num = UART_NUM_2,
@@ -31,7 +31,7 @@ void fullness_thread(void* args)
     {
         uint32_t fullness = measure_avg_fullness(&dist_sensor);
 
-        ESP_LOGI("Ultrasonic", "Average fullness: %d", fullness);
+        ESP_LOGI(ULTRASONIC_TAG, "Average fullness: %d", fullness);
 
         vTaskDelay(500 / portTICK_PERIOD_MS);
     }

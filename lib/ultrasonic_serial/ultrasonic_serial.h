@@ -12,6 +12,8 @@ typedef struct
     gpio_num_t rx_pin; // RX pin of UART
 } ultrasonic_serial_t;
 
+#define ULTRASONIC_TAG "ultrasonic"
+
 /*!
  * @brief Initalize US-100 ultrasonic sensor
  * 
