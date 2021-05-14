@@ -2,11 +2,13 @@
 #include <freertos/task.h>
 #include "secrets.h"
 #include "fullness_thread.h"
+#include "mqtt_thread.h"
 
 #define FULLNESS_STACK_SIZE (8192)
+#define MQTT_STACK_SIZE (8192)
 
 void app_main(void)
 {
     xTaskCreate(fullness_thread, "fullness", FULLNESS_STACK_SIZE, NULL, 10, NULL);
-    
+    xTaskCreate(mqtt_thread, "mqtt", MQTT_STACK_SIZE, NULL, 10, NULL);
 }
