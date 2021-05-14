@@ -1,4 +1,5 @@
 #include "mqtt_thread.h"
+#include "fullness_thread.h"
 #include "secrets.h"
 
 #include "esp_wifi.h"
@@ -24,6 +25,7 @@ const static int CONNECTED_BIT = BIT0;
 
 esp_mqtt_client_handle_t mqtt_client;
 int mqtt_connected = 0;
+
 
 static esp_err_t wifi_event_handler(void *ctx, system_event_t *event)
 {
@@ -127,7 +129,8 @@ void mqtt_thread(void *args)
 
     while (1)
     {
-        int fullness = 53;
+        uint32_t fullness;
+        xQueueReceive(fullness_queue, &fullness, portMAX_DELAY);
 
         if (mqtt_connected) 
         {
@@ -136,6 +139,6 @@ void mqtt_thread(void *args)
             ESP_LOGI(MQTT_TAG, "MQTT published successful, msg_id=%d", msg_id);
         }
 
-        vTaskDelay(10000 / portTICK_PERIOD_MS);
+        vTaskDelay(5000 / portTICK_PERIOD_MS);
     }
 }

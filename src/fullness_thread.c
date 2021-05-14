@@ -4,6 +4,7 @@
 #include <freertos/task.h>
 #include <esp_log.h>
 
+#if 0 
 #define FULLNESS_BUFFER_SIZE 10UL
 #define FULLNESS_FIRST_QUARTILE (FULLNESS_BUFFER_SIZE / 4)
 #define FULLNESS_THIRD_QUARTILE (FULLNESS_BUFFER_SIZE - FULLNESS_FIRST_QUARTILE)
@@ -14,6 +15,8 @@ static uint32_t measure_avg_fullness(const ultrasonic_serial_t *p_sensor);
 static int fill_fullness_buffer(const ultrasonic_serial_t *p_sensor);
 static void sort_fullness_buffer(void);
 static uint32_t calculate_interquartile_average(void);
+#endif 
+
 
 void fullness_thread(void* args)
 {
@@ -27,16 +30,33 @@ void fullness_thread(void* args)
 
     ESP_ERROR_CHECK(ultrasonic_serial_init(&dist_sensor)); 
 
+    fullness_queue = xQueueCreate(20, sizeof(uint32_t));
+
+    // If queue failed to create queue, restart system
+    if (fullness_queue == NULL) 
+    {
+        vTaskDelay(5000 / portTICK_PERIOD_MS);
+        esp_restart();
+    }
+
     while (1)
     {
-        uint32_t fullness = measure_avg_fullness(&dist_sensor);
+        //uint32_t fullness = measure_avg_fullness(&dist_sensor);
+        uint32_t fullness = 0;
+        // Record number of failed readings
+        if (ultrasonic_measure(&dist_sensor, &fullness) != ESP_OK)
+        {
+            ESP_LOGI(ULTRASONIC_TAG, "Sensor failed");
+        }
 
         ESP_LOGI(ULTRASONIC_TAG, "Average fullness: %d", fullness);
 
-        vTaskDelay(500 / portTICK_PERIOD_MS);
+        xQueueSend(fullness_queue, &fullness, portMAX_DELAY);
+        vTaskDelay(2500 / portTICK_PERIOD_MS);
     }
 }
 
+#if 0
 /*!
  * @brief Measures the average fullness
  * @param[in] p_sensor Pointer to US-100 descriptor
@@ -125,3 +145,4 @@ static uint32_t calculate_interquartile_average(void)
 
     return sum / (FULLNESS_THIRD_QUARTILE - FULLNESS_FIRST_QUARTILE);
 }
+#endif 
