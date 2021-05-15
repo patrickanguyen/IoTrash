@@ -31,7 +31,15 @@ static esp_mqtt_client_handle_t mqtt_client;
 static int mqtt_connected = 0;
 
 
-static void event_handler(void* arg, esp_event_base_t event_base, int32_t event_id, void* event_data)
+/*!
+ * @brief Wi-Fi Driver event handler
+ * @param[in] arg Argument of event handler
+ * @param[in] event_base Base ID of event to register handler for
+ * @param[in] event_id ID of event to register the handler for
+ * @param[in] event_data Data that is passed to handler
+ * 
+ */
+static void wifi_event_handler(void* arg, esp_event_base_t event_base, int32_t event_id, void* event_data)
 {
     if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_START) 
     {
@@ -62,8 +70,14 @@ static void event_handler(void* arg, esp_event_base_t event_base, int32_t event_
 }
 
 
+/*!
+ * @brief Initialize Wi-Fi in station mode 
+ *
+ */
 static void wifi_init(void)
 {
+    // Initialize Wi-Fi configuration
+
     wifi_event_group = xEventGroupCreate();
 
     ESP_ERROR_CHECK(esp_netif_init());
@@ -76,8 +90,8 @@ static void wifi_init(void)
 
     esp_event_handler_instance_t instance_any_id;
     esp_event_handler_instance_t instance_got_ip;
-    ESP_ERROR_CHECK(esp_event_handler_instance_register(WIFI_EVENT, ESP_EVENT_ANY_ID, &event_handler, NULL, &instance_any_id));
-    ESP_ERROR_CHECK(esp_event_handler_instance_register(IP_EVENT, IP_EVENT_STA_GOT_IP, &event_handler, NULL, &instance_got_ip));
+    ESP_ERROR_CHECK(esp_event_handler_instance_register(WIFI_EVENT, ESP_EVENT_ANY_ID, &wifi_event_handler, NULL, &instance_any_id));
+    ESP_ERROR_CHECK(esp_event_handler_instance_register(IP_EVENT, IP_EVENT_STA_GOT_IP, &wifi_event_handler, NULL, &instance_got_ip));
 
     wifi_config_t wifi_config = {
         .sta = {
@@ -92,6 +106,7 @@ static void wifi_init(void)
 
     ESP_LOGI(MQTT_TAG, "wifi_init_sta finished.");
 
+    // Wait for Wi-Fi to be connected or failed 
     EventBits_t bits = xEventGroupWaitBits(wifi_event_group, WIFI_CONNECTED_BIT | WIFI_FAIL_BIT, pdFALSE, pdFALSE, portMAX_DELAY);
 
     if (bits & WIFI_CONNECTED_BIT) 
@@ -110,6 +125,11 @@ static void wifi_init(void)
 }
 
 
+/*!
+ * @brief MQTT client event handler 
+ * @param[in] event MQTT related events
+ * 
+ */
 static esp_err_t mqtt_event_handler(esp_mqtt_event_handle_t event) 
 {
     mqtt_client = event->client;
@@ -147,6 +167,10 @@ static esp_err_t mqtt_event_handler(esp_mqtt_event_handle_t event)
 }
 
 
+/*!
+ * @brief Initalize MQTT protocol client 
+ * 
+ */
 static void mqtt_app_start(void)
 {
     esp_mqtt_client_config_t mqtt_cfg = {
@@ -161,6 +185,7 @@ static void mqtt_app_start(void)
 
 void mqtt_thread(void *args)
 {
+    // Initialize Wi-Fi & MQTT client
     nvs_flash_init();
     wifi_init();
     mqtt_app_start();
@@ -169,9 +194,11 @@ void mqtt_thread(void *args)
 
     while (1)
     {
+        // Wait for fullness from fullness thread
         uint32_t fullness;
         xQueueReceive(fullness_queue, &fullness, portMAX_DELAY);
 
+        // If connected to MQTT broker, publish fullness to MQTT broker
         if (mqtt_connected) 
         {
             sprintf(fullness_str, "%d", fullness);

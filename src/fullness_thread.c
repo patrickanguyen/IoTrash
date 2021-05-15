@@ -52,7 +52,7 @@ void fullness_thread(void* args)
         ESP_LOGI(ULTRASONIC_TAG, "Average fullness: %d", fullness);
 
         xQueueSend(fullness_queue, &fullness, portMAX_DELAY);
-        vTaskDelay(2500 / portTICK_PERIOD_MS);
+        vTaskDelay(5000 / portTICK_PERIOD_MS);
     }
 }
 
