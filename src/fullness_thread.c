@@ -18,6 +18,8 @@ static void sort_fullness_buffer(void);
 static uint32_t calculate_interquartile_average(void);
 #endif 
 
+#define FULLNESS_THREAD_PERIOD (5000 / portTICK_PERIOD_MS)
+
 
 void fullness_thread(void* args)
 {
@@ -36,7 +38,7 @@ void fullness_thread(void* args)
     // If queue failed to create queue, restart system
     if (fullness_queue == NULL) 
     {
-        vTaskDelay(5000 / portTICK_PERIOD_MS);
+        vTaskDelay(FULLNESS_THREAD_PERIOD);
         esp_restart();
     }
 
@@ -53,7 +55,7 @@ void fullness_thread(void* args)
         ESP_LOGI(ULTRASONIC_TAG, "Average fullness: %d", fullness);
 
         xQueueSend(fullness_queue, &fullness, portMAX_DELAY);
-        vTaskDelay(5000 / portTICK_PERIOD_MS);
+        vTaskDelay(FULLNESS_THREAD_PERIOD);
     }
 }
 

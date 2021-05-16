@@ -70,7 +70,7 @@ void mqtt_thread(void *args)
 
         }
 
-        vTaskDelay(5000 / portTICK_PERIOD_MS);
+        vTaskDelay(MQTT_THREAD_PERIOD);
     }
 }
 
