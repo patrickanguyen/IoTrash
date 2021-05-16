@@ -1,22 +1,23 @@
 #include "mqtt_thread.h"
 #include "fullness_thread.h"
+#include "temp_thread.h"
 #include "secrets.h"
 
-#include "esp_wifi.h"
-#include "esp_system.h"
-#include "nvs_flash.h"
-#include "esp_event.h"
+#include <esp_wifi.h>
+#include <esp_system.h>
+#include <nvs_flash.h>
+#include <esp_event.h>
 
-#include "freertos/FreeRTOS.h"
-#include "freertos/task.h"
-#include "freertos/event_groups.h"
-#include "freertos/queue.h"
+#include <freertos/FreeRTOS.h>
+#include <freertos/task.h>
+#include <freertos/event_groups.h>
+#include <freertos/queue.h>
 
-#include "lwip/err.h"
-#include "lwip/sys.h"
+#include <lwip/err.h>
+#include <lwip/sys.h>
 
-#include "esp_log.h"
-#include "mqtt_client.h"
+#include <esp_log.h>
+#include <mqtt_client.h>
 
 #define WIFI_CONNECTED_BIT BIT0
 #define WIFI_FAIL_BIT BIT1
@@ -191,6 +192,7 @@ void mqtt_thread(void *args)
     mqtt_app_start();
     
     char fullness_str[32];
+    char temperature_str[32];
 
     while (1)
     {
@@ -198,12 +200,21 @@ void mqtt_thread(void *args)
         uint32_t fullness;
         xQueueReceive(fullness_queue, &fullness, portMAX_DELAY);
 
+        uint16_t temperature;
+        xQueueReceive(temp_queue, &temperature, portMAX_DELAY);
+        
+
         // If connected to MQTT broker, publish fullness to MQTT broker
         if (mqtt_connected) 
         {
             sprintf(fullness_str, "%d", fullness);
-            int msg_id = esp_mqtt_client_publish(mqtt_client, MQTT_TOPIC, fullness_str, 0, 1, 0);
-            ESP_LOGI(MQTT_TAG, "MQTT published successful, msg_id=%d", msg_id);
+            int msg_id = esp_mqtt_client_publish(mqtt_client, FULLNESS_TOPIC, fullness_str, 0, 1, 0);
+            ESP_LOGI(MQTT_TAG, "MQTT Fullness published successful, msg_id=%d", msg_id);
+
+            sprintf(temperature_str, "%d", temperature);
+            int msg_id2 = esp_mqtt_client_publish(mqtt_client, TEMP_TOPIC, temperature_str, 0, 1, 0);
+            ESP_LOGI(MQTT_TAG, "MQTT Temperature published successful, msg_id=%d", msg_id2);
+
         }
 
         vTaskDelay(5000 / portTICK_PERIOD_MS);

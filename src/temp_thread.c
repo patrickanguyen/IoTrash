@@ -1,8 +1,9 @@
 #include "temp_thread.h"
 
+#include <dht.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
-#include <dht.h>
+#include <freertos/queue.h>
 #include <esp_log.h>
 
 static const dht_sensor_type_t sensor_type = DHT_TYPE_AM2301;
@@ -13,15 +14,17 @@ static const dht_sensor_type_t sensor_type = DHT_TYPE_AM2301;
 void temp_thread(void *args)
 {
     int16_t temperature = 0;
-    int16_t humidity = 0;
+    temp_queue = xQueueCreate(20, sizeof(int16_t));
 
     while (1)
     {
         // Read from the DHT22 sensor every 2 seconds 
 
-        if (dht_read_data(sensor_type, DHT_GPIO, &humidity, &temperature) == ESP_OK)
+        if (dht_read_data(sensor_type, DHT_GPIO, NULL, &temperature) == ESP_OK)
         {
-            ESP_LOGI(TEMP_TAG, "Humdity: %d%% Temp: %dC", humidity/10, temperature/10);
+            temperature /= 10;
+            xQueueSend(temp_queue, &temperature, portMAX_DELAY);
+            ESP_LOGI(TEMP_TAG, "Temp: %dC", temperature);
         }
         else 
         {

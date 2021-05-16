@@ -2,7 +2,8 @@
 #define __FULLNESS_THREAD__
 
 #include <ultrasonic_serial.h>
-#include "freertos/queue.h"
+#include <freertos/FreeRTOS.h>
+#include <freertos/queue.h>
 
 /*!
  * @brief Thread measuring fullness of trash can
