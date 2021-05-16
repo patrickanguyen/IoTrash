@@ -21,53 +21,57 @@
 
 #define WIFI_CONNECTED_BIT BIT0
 #define WIFI_FAIL_BIT BIT1
-
 #define WIFI_MAX_ENTRY 10
 
 static EventGroupHandle_t wifi_event_group;
 static int s_retry_num = 0;
 
-
 static esp_mqtt_client_handle_t mqtt_client;
 static int mqtt_connected = 0;
 
+#define MQTT_THREAD_PERIOD (5000 / portTICK_PERIOD_MS)
 
-/*!
- * @brief Wi-Fi Driver event handler
- * @param[in] arg Argument of event handler
- * @param[in] event_base Base ID of event to register handler for
- * @param[in] event_id ID of event to register the handler for
- * @param[in] event_data Data that is passed to handler
- * 
- */
-static void wifi_event_handler(void* arg, esp_event_base_t event_base, int32_t event_id, void* event_data)
+static void wifi_init(void);
+static void wifi_event_handler(void* arg, esp_event_base_t event_base, int32_t event_id, void* event_data);
+static void mqtt_app_start(void);
+static esp_err_t mqtt_event_handler(esp_mqtt_event_handle_t event);
+
+
+void mqtt_thread(void *args)
 {
-    if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_START) 
-    {
-        esp_wifi_connect();
-    } 
-    else if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_DISCONNECTED) 
-    {
-        if (s_retry_num < WIFI_MAX_ENTRY) 
-        {
-            esp_wifi_connect();
-            s_retry_num++;
-            ESP_LOGI(MQTT_TAG, "retry to connect to the AP");
-        } 
-        else 
-        {
-            xEventGroupSetBits(wifi_event_group, WIFI_FAIL_BIT);
-        }
-        ESP_LOGI(MQTT_TAG,"connect to the AP fail");
-    } 
-    else if (event_base == IP_EVENT && event_id == IP_EVENT_STA_GOT_IP) 
-    {
-        ip_event_got_ip_t* event = (ip_event_got_ip_t*) event_data;
-        ESP_LOGI(MQTT_TAG, "got ip:" IPSTR, IP2STR(&event->ip_info.ip));
-        s_retry_num = 0;
-        xEventGroupSetBits(wifi_event_group, WIFI_CONNECTED_BIT);
-    }
+    // Initialize Wi-Fi & MQTT client
+    nvs_flash_init();
+    wifi_init();
+    mqtt_app_start();
+    
+    char fullness_str[32];
+    char temperature_str[32];
 
+    while (1)
+    {
+        // Wait for fullness from fullness thread
+        uint32_t fullness;
+        xQueueReceive(fullness_queue, &fullness, portMAX_DELAY);
+
+        uint16_t temperature;
+        xQueueReceive(temp_queue, &temperature, portMAX_DELAY);
+        
+
+        // If connected to MQTT broker, publish fullness to MQTT broker
+        if (mqtt_connected) 
+        {
+            sprintf(fullness_str, "%d", fullness);
+            int msg_id = esp_mqtt_client_publish(mqtt_client, FULLNESS_TOPIC, fullness_str, 0, 1, 0);
+            ESP_LOGI(MQTT_TAG, "MQTT Fullness published successful, msg_id=%d", msg_id);
+
+            sprintf(temperature_str, "%d", temperature);
+            int msg_id2 = esp_mqtt_client_publish(mqtt_client, TEMP_TOPIC, temperature_str, 0, 1, 0);
+            ESP_LOGI(MQTT_TAG, "MQTT Temperature published successful, msg_id=%d", msg_id2);
+
+        }
+
+        vTaskDelay(5000 / portTICK_PERIOD_MS);
+    }
 }
 
 
@@ -127,6 +131,61 @@ static void wifi_init(void)
 
 
 /*!
+ * @brief Wi-Fi Driver event handler
+ * @param[in] arg Argument of event handler
+ * @param[in] event_base Base ID of event to register handler for
+ * @param[in] event_id ID of event to register the handler for
+ * @param[in] event_data Data that is passed to handler
+ * 
+ */
+static void wifi_event_handler(void* arg, esp_event_base_t event_base, int32_t event_id, void* event_data)
+{
+    if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_START) 
+    {
+        esp_wifi_connect();
+    } 
+    else if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_DISCONNECTED) 
+    {
+        if (s_retry_num < WIFI_MAX_ENTRY) 
+        {
+            esp_wifi_connect();
+            s_retry_num++;
+            ESP_LOGI(MQTT_TAG, "retry to connect to the AP");
+        } 
+        else 
+        {
+            xEventGroupSetBits(wifi_event_group, WIFI_FAIL_BIT);
+        }
+        ESP_LOGI(MQTT_TAG,"connect to the AP fail");
+    } 
+    else if (event_base == IP_EVENT && event_id == IP_EVENT_STA_GOT_IP) 
+    {
+        ip_event_got_ip_t* event = (ip_event_got_ip_t*) event_data;
+        ESP_LOGI(MQTT_TAG, "got ip:" IPSTR, IP2STR(&event->ip_info.ip));
+        s_retry_num = 0;
+        xEventGroupSetBits(wifi_event_group, WIFI_CONNECTED_BIT);
+    }
+
+}
+
+
+/*!
+ * @brief Initalize MQTT protocol client 
+ * 
+ */
+static void mqtt_app_start(void)
+{
+    esp_mqtt_client_config_t mqtt_cfg = {
+        .uri = MQTT_URI,
+        .event_handle = mqtt_event_handler
+    };
+
+    esp_mqtt_client_handle_t client = esp_mqtt_client_init(&mqtt_cfg);
+    esp_mqtt_client_start(client);
+}
+
+
+/*!
  * @brief MQTT client event handler 
  * @param[in] event MQTT related events
  * 
@@ -167,56 +226,3 @@ static esp_err_t mqtt_event_handler(esp_mqtt_event_handle_t event)
     return ESP_OK;
 }
 
-
-/*!
- * @brief Initalize MQTT protocol client 
- * 
- */
-static void mqtt_app_start(void)
-{
-    esp_mqtt_client_config_t mqtt_cfg = {
-        .uri = MQTT_URI,
-        .event_handle = mqtt_event_handler
-    };
-
-    esp_mqtt_client_handle_t client = esp_mqtt_client_init(&mqtt_cfg);
-    esp_mqtt_client_start(client);
-}
-
-
-void mqtt_thread(void *args)
-{
-    // Initialize Wi-Fi & MQTT client
-    nvs_flash_init();
-    wifi_init();
-    mqtt_app_start();
-    
-    char fullness_str[32];
-    char temperature_str[32];
-
-    while (1)
-    {
-        // Wait for fullness from fullness thread
-        uint32_t fullness;
-        xQueueReceive(fullness_queue, &fullness, portMAX_DELAY);
-
-        uint16_t temperature;
-        xQueueReceive(temp_queue, &temperature, portMAX_DELAY);
-        
-
-        // If connected to MQTT broker, publish fullness to MQTT broker
-        if (mqtt_connected) 
-        {
-            sprintf(fullness_str, "%d", fullness);
-            int msg_id = esp_mqtt_client_publish(mqtt_client, FULLNESS_TOPIC, fullness_str, 0, 1, 0);
-            ESP_LOGI(MQTT_TAG, "MQTT Fullness published successful, msg_id=%d", msg_id);
-
-            sprintf(temperature_str, "%d", temperature);
-            int msg_id2 = esp_mqtt_client_publish(mqtt_client, TEMP_TOPIC, temperature_str, 0, 1, 0);
-            ESP_LOGI(MQTT_TAG, "MQTT Temperature published successful, msg_id=%d", msg_id2);
-
-        }
-
-        vTaskDelay(5000 / portTICK_PERIOD_MS);
-    }
-}
